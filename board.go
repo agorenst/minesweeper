@@ -82,11 +82,33 @@ func printBoard(board [][]bool) {
 }
 
 
+func initGame(conn net.Conn) (board [][]bool) {
+    // first, we read the board stats request
+    // START X Y M Q
+    readBuff := make([]byte, 128)
+    _, _ = conn.Read(readBuff)
+    str := string(readBuff)
+    start_strings := strings.Split(str, " ")
+    x, _ := strconv.Atoi(start_strings[1])
+    y, _ := strconv.Atoi(start_strings[2])
+    m, _ := strconv.Atoi(start_strings[3])
+
+    fmt.Println("Made board with", x, y, m)
+    conn.Write([]byte("MADE"))
+
+    board = initBoard(x,y,m)
+    return board
+}
+
 // query format: "<X> <Y> Q", where <X> and <Y> are ints
 // eg: 5 3 Q
 // the Q is just a terminal to make parsing easier.
-func handleConnection(conn net.Conn, board [][]bool) {
+func handleConnection(conn net.Conn) {
     fmt.Println("About to handle connection")
+
+    board := initGame(conn)
+    printBoard(board)
+
     readBuff := make([]byte, 128)
     for {
         _, con_err := conn.Read(readBuff)
@@ -108,8 +130,6 @@ func handleConnection(conn net.Conn, board [][]bool) {
 }
 
 func main() {
-    board := initBoard(15,10,20)
-    printBoard(board)
     ln, err := net.Listen("tcp", ":8080")
     if err != nil {
         // handle error
@@ -121,6 +141,6 @@ func main() {
         }
         
         // concurrency!
-        handleConnection(conn, board)
+        go handleConnection(conn)
     }
 }

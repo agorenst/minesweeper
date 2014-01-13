@@ -2,26 +2,16 @@ import sys
 import socket
 import pygame
 
-# creating and initializing graphics assets.
-
-X = 15
-Y = 10
-
-pygame.init()
-squarelen = 20
-minechars = [pygame.font.SysFont(None,squarelen).render(str(i), 1, (0,100,100)) for i in range(10)]
-minepic = pygame.font.SysFont(None,squarelen).render('M', 1, (0,100,100))
-
 # handy global constants
-
 UNKNOWN = -2
 MINE = -1
 
 class Grid(object):
-    def __init__(self, x, y):
+    def __init__(self, x, y, window):
         self.x = x
         self.y = y
         self.g = [[UNKNOWN for i in range(x)] for j in range(y)]
+        self.window = window
     def __getitem__(self,p):
         x = p[0]
         y = p[1]
@@ -34,13 +24,13 @@ class Grid(object):
         for i in range(self.x):
             for j in range(self.y):
                 square = (i*squarelen, j*squarelen, squarelen, squarelen)
-                pygame.draw.rect(window, (100, 0, 100), square, 0)
+                pygame.draw.rect(self.window, (100, 0, 100), square, 0)
 
         # draw a black outline around each square.
         for i in range(self.x):
             for j in range(self.y):
                 square = (i*squarelen, j*squarelen, squarelen, squarelen)
-                pygame.draw.rect(window, (0,0,0), square, 5)
+                pygame.draw.rect(self.window, (0,0,0), square, 5)
 
     def inBounds(self,x,y):
         return 0 <= x and x < self.x and 0 <= y and y < self.y
@@ -48,11 +38,11 @@ class Grid(object):
     def drawMine(self,x,y):
         rect = minepic.get_rect()
         rect.center = ((x+0.5)*squarelen, (y+0.5)*squarelen)
-        window.blit(minepic, rect)
+        self.window.blit(minepic, rect)
     def drawNum(self,x,y,n):
         rect = minechars[n].get_rect()
         rect.center = ((x+0.5)*squarelen, (y+0.5)*squarelen)
-        window.blit(minechars[n], rect)
+        self.window.blit(minechars[n], rect)
 
     def draw(self):
         self.drawBasic()
@@ -89,12 +79,9 @@ class Grid(object):
 
 
 
-# these are the two clients we interact with.
-t = socket.create_connection(("localhost", 8080))
-window = pygame.display.set_mode((X*squarelen,Y*squarelen))
 
 
-def queryServer(G,p):
+def queryServer(G,p,t):
     t.send(str(p[0])+" "+str(p[1])+" Q")
     res = t.recv(4096)
     # eventually we'll have to be smarter about this
@@ -127,16 +114,46 @@ def runAI(G, P, Q):
 
         nP.add(p)
 
-    for q in Q:
-        queryServer(G,q)
-        nP.add(q)
-    Q = set([])
     return G, nP, Q
 
+def startServerCom(x,y,m):
+    t = socket.create_connection(("localhost", 8080))
+    t.send("START "+str(x)+" "+str(y)+" "+str(m)+" Q")
+    res = t.recv(4096)
+    print res
+    return t
+
+def processQueries(G, P, Q,t):
+    for q in Q:
+        queryServer(G,q,t)
+        # now knowing its number, this point may be interesting...
+        P.add(q)
+    return G, P, set([])
+
+
+
+minechars = []
+minepic = None
+squarelen = 20
+def initGraphics(X,Y):
+    global minechars
+    global minepic
+    pygame.init()
+    window = pygame.display.set_mode((X*squarelen,Y*squarelen))
+    minechars = [pygame.font.SysFont(None,squarelen).render(str(i), 1, (0,100,100)) for i in range(10)]
+    minepic = pygame.font.SysFont(None,squarelen).render('M', 1, (0,100,100))
+    return window
 
 def main():
+    X = int(sys.argv[1])
+    Y = int(sys.argv[2])
+    M = int(sys.argv[3])
+    print X, Y, M
+
+    window = initGraphics(X,Y)
+    t = startServerCom(X,Y,M)
     # this is the main grid we use
-    G = Grid(X, Y)
+    G = Grid(X, Y, window)
 
     # these are the cells we've already queried,
     # but may have interesting neighbors
@@ -151,6 +168,11 @@ def main():
         G = newstate[0]
         P = newstate[1]
         Q = newstate[2]
+        newstate = processQueries(G,P,Q,t)
+        G = newstate[0]
+        P = newstate[1]
+        Q = newstate[2]
+
         pygame.display.update()
         
         for event in pygame.event.get():
