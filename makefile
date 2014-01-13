@@ -1,0 +1,2 @@
+board:
+	go build
