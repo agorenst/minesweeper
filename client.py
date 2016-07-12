@@ -6,6 +6,9 @@ import pygame
 UNKNOWN = -2
 MINE = -1
 
+SQUARE_COLOR = (100,100,100)
+NUM_COLORS = [(0,0,0), (0,0,100), (100,0,0), (0,100,0), (100,100,0), (100,0,100), (0,100,100), (50, 50, 100), (100, 50, 50), (50,100,50)]
+
 class Grid(object):
     def __init__(self, x, y, window):
         self.x = x
@@ -24,7 +27,10 @@ class Grid(object):
         for i in range(self.x):
             for j in range(self.y):
                 square = (i*squarelen, j*squarelen, squarelen, squarelen)
-                pygame.draw.rect(self.window, (100, 0, 100), square, 0)
+                color = SQUARE_COLOR
+                if (self.g[j][i] >= 0):
+                    color = NUM_COLORS[self.g[j][i]]
+                pygame.draw.rect(self.window, color, square, 0)
 
         # draw a black outline around each square.
         for i in range(self.x):
@@ -116,6 +122,9 @@ def runAI(G, P, Q):
 
     return G, nP, Q
 
+
+# handles initial communication to the server until the main
+# query-response loop can take over
 def startServerCom(x,y,m):
     t = socket.create_connection(("localhost", 8080))
     t.send("START "+str(x)+" "+str(y)+" "+str(m)+" Q")
@@ -140,7 +149,7 @@ def initGraphics(X,Y):
     global minepic
     pygame.init()
     window = pygame.display.set_mode((X*squarelen,Y*squarelen))
-    minechars = [pygame.font.SysFont(None,squarelen).render(str(i), 1, (0,100,100)) for i in range(10)]
+    minechars = [pygame.font.SysFont(None,squarelen).render(str(i), 1, (0,00,00)) for i in range(10)]
     minepic = pygame.font.SysFont(None,squarelen).render('M', 1, (0,100,100))
     return window
 
@@ -156,7 +165,7 @@ def main():
     G = Grid(X, Y, window)
 
     # these are the cells we've already queried,
-    # but may have interesting neighbors
+    # but may have interesting neighbors. The ones we are still "processing"
     P = set([])
     # the cells we want to query from the server (ideally,
     # those we have determined are safe)
